@@ -15,6 +15,7 @@ import 'package:simple_live_app/app/utils.dart';
 import 'package:simple_live_app/services/live_subtitle_service.dart';
 import 'package:simple_live_app/services/local_storage_service.dart';
 import 'package:simple_live_app/services/profile_backup_service.dart';
+import 'package:simple_live_app/services/signalr_service.dart';
 
 class OtherSettingsController extends BaseController {
   RxList<LogFileModel> logFiles = <LogFileModel>[].obs;
@@ -200,7 +201,7 @@ class OtherSettingsController extends BaseController {
       var filePath = file.files.single.path!;
       var content = await File(filePath).readAsString();
       var data = jsonDecode(content);
-      if (data is Map && data["schema"] == ProfileBackupService.schema) {
+      if (ProfileBackupService.instance.isSupportedProfileMap(data)) {
         var overwrite = await Utils.showAlertDialog(
           "是否覆盖本地数据？选择“不覆盖”会合并导入，保留本机已有数据。",
           title: "导入配置包",
@@ -214,33 +215,11 @@ class OtherSettingsController extends BaseController {
         SmartDialog.showToast("导入成功：${summary.message}");
         return;
       }
-      await _importLegacyConfig(data);
+      SmartDialog.showToast("不支持的配置文件");
     } catch (e) {
       Log.logPrint(e);
       SmartDialog.showToast("导入失败:$e");
     }
-  }
-
-  Future<void> _importLegacyConfig(dynamic data) async {
-    if (data is! Map || data["type"] != "simple_live") {
-      SmartDialog.showToast("不支持的配置文件");
-      return;
-    }
-    if (data["platform"] != Platform.operatingSystem &&
-        !await Utils.showAlertDialog(
-          "导入配置文件平台不匹配,是否继续导入?",
-          title: "平台不匹配",
-        )) {
-      return;
-    }
-    LocalStorageService.instance.settingsBox.clear();
-    LocalStorageService.instance.shieldBox.clear();
-    LocalStorageService.instance.settingsBox.putAll(data["config"]);
-    LocalStorageService.instance.shieldBox
-        .putAll(data["shield"].cast<String, String>());
-    AppSettingsController.instance.reloadFromStorage();
-    await LiveSubtitleService.instance.syncPreviewFromSettings();
-    SmartDialog.showToast("导入成功");
   }
 
   void resetDefaultConfig() {
@@ -253,6 +232,67 @@ class OtherSettingsController extends BaseController {
         SmartDialog.showToast("重置成功,重启生效");
       }
     });
+  }
+
+  String get syncServerUrl => SignalRService.configuredUrl;
+  String get syncProxyUrl => SignalRService.proxyDisplayName;
+
+  void editSyncServerUrl() async {
+    var value = await Utils.showEditTextDialog(
+      SignalRService.configuredUrl,
+      title: "同步服务地址",
+      hintText: SignalRService.kDefaultUrl,
+      validate: (text) {
+        final url = text.trim();
+        if (url.isEmpty) {
+          return true;
+        }
+        final uri = Uri.tryParse(url);
+        if (uri == null ||
+            !(uri.scheme == "wss" || uri.scheme == "ws") ||
+            uri.host.isEmpty) {
+          SmartDialog.showToast("请输入 ws:// 或 wss:// 开头的同步服务地址");
+          return false;
+        }
+        return true;
+      },
+    );
+    if (value == null) {
+      return;
+    }
+    await SignalRService.setConfiguredUrl(value);
+    SmartDialog.showToast(value.trim().isEmpty ? "已恢复默认同步服务" : "已保存");
+    update();
+  }
+
+  void resetSyncServerUrl() async {
+    await SignalRService.setConfiguredUrl("");
+    SmartDialog.showToast("已恢复默认同步服务");
+    update();
+  }
+
+  void editSyncProxyUrl() async {
+    var value = await Utils.showEditTextDialog(
+      SignalRService.configuredProxyUrl,
+      title: "同步代理地址",
+      hintText: "留空自动检测 ${SignalRService.kDefaultLocalProxy}",
+      validate: (text) {
+        final value = text.trim();
+        if (!SignalRService.isValidProxyConfig(value)) {
+          SmartDialog.showToast(
+            "请输入 host:port、http://host:port，或 direct 直连",
+          );
+          return false;
+        }
+        return true;
+      },
+    );
+    if (value == null) {
+      return;
+    }
+    await SignalRService.setConfiguredProxyUrl(value);
+    SmartDialog.showToast(value.trim().isEmpty ? "已恢复自动检测代理" : "已保存");
+    update();
   }
 }
 

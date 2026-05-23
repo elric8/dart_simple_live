@@ -39,16 +39,15 @@ import 'package:window_manager/window_manager.dart';
 import 'package:path/path.dart' as p;
 import 'package:dynamic_color/dynamic_color.dart';
 
-void main() async {
+const _secondaryInstanceArg = "--simple-live-secondary-instance";
+const _secondaryInstanceEnv = "SIMPLE_LIVE_SECONDARY_INSTANCE";
+
+void main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
   await migrateData();
   await initWindow();
   MediaKit.ensureInitialized();
-  await Hive.initFlutter(
-    (!Platform.isAndroid && !Platform.isIOS)
-        ? (await getApplicationSupportDirectory()).path
-        : null,
-  );
+  await Hive.initFlutter(await resolveHivePath(args));
   //初始化服务
   await initServices();
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
@@ -60,6 +59,86 @@ void main() async {
   );
   SystemChrome.setSystemUIOverlayStyle(systemUiOverlayStyle);
   runApp(const MyApp());
+}
+
+Future<String?> resolveHivePath(List<String> args) async {
+  if (Platform.isAndroid || Platform.isIOS) {
+    return null;
+  }
+  final appSupportDir = await getApplicationSupportDirectory();
+  if (!isSecondaryDesktopInstance(args)) {
+    return appSupportDir.path;
+  }
+  final instanceDir = await prepareSecondaryHiveDirectory(appSupportDir);
+  return instanceDir.path;
+}
+
+bool isSecondaryDesktopInstance(List<String> args) {
+  if (!(Platform.isWindows || Platform.isMacOS)) {
+    return false;
+  }
+  return args.contains(_secondaryInstanceArg) ||
+      Platform.environment[_secondaryInstanceEnv] == "1";
+}
+
+Future<Directory> prepareSecondaryHiveDirectory(Directory sourceDir) async {
+  final instancesRoot = Directory(p.join(sourceDir.path, "instances"));
+  await instancesRoot.create(recursive: true);
+  final instanceDir = Directory(
+    p.join(
+      instancesRoot.path,
+      "${DateTime.now().millisecondsSinceEpoch}_$pid",
+    ),
+  );
+  await instanceDir.create(recursive: true);
+  await copyHiveSnapshot(sourceDir, instanceDir);
+  await cleanupOldSecondaryHiveDirectories(instancesRoot, instanceDir);
+  return instanceDir;
+}
+
+Future<void> copyHiveSnapshot(Directory sourceDir, Directory targetDir) async {
+  if (!await sourceDir.exists()) {
+    return;
+  }
+  await for (final entity in sourceDir.list(followLinks: false)) {
+    if (entity is! File) {
+      continue;
+    }
+    final fileName = p.basename(entity.path);
+    final lowerFileName = fileName.toLowerCase();
+    if (!lowerFileName.endsWith(".hive") &&
+        !lowerFileName.endsWith(".hivec")) {
+      continue;
+    }
+    try {
+      await entity.copy(p.join(targetDir.path, fileName));
+    } catch (e) {
+      Log.logPrint(e);
+    }
+  }
+}
+
+Future<void> cleanupOldSecondaryHiveDirectories(
+  Directory instancesRoot,
+  Directory currentDir,
+) async {
+  if (!await instancesRoot.exists()) {
+    return;
+  }
+  final now = DateTime.now();
+  await for (final entity in instancesRoot.list(followLinks: false)) {
+    if (entity is! Directory || entity.path == currentDir.path) {
+      continue;
+    }
+    try {
+      final stat = await entity.stat();
+      if (now.difference(stat.modified) > const Duration(days: 2)) {
+        await entity.delete(recursive: true);
+      }
+    } catch (e) {
+      Log.logPrint(e);
+    }
+  }
 }
 
 /// 将Hive数据迁移到Application Support

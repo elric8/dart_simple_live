@@ -7,6 +7,7 @@ import 'package:simple_live_app/app/app_style.dart';
 import 'package:simple_live_app/app/controller/app_settings_controller.dart';
 import 'package:simple_live_app/app/utils.dart';
 import 'package:simple_live_app/modules/settings/other/other_settings_controller.dart';
+import 'package:simple_live_app/widgets/settings/settings_action.dart';
 import 'package:simple_live_app/widgets/settings/settings_card.dart';
 import 'package:simple_live_app/widgets/settings/settings_menu.dart';
 import 'package:simple_live_app/widgets/settings/settings_switch.dart';
@@ -91,6 +92,25 @@ class OtherSettingsPage extends GetView<OtherSettingsController> {
           SettingsCard(
             child: Column(
               children: [
+                GetBuilder<OtherSettingsController>(
+                  builder: (controller) => SettingsAction(
+                    title: "同步服务地址",
+                    subtitle: "远程同步创建房间/加入房间使用的 WebSocket 服务",
+                    value: controller.syncServerUrl,
+                    onTap: controller.editSyncServerUrl,
+                  ),
+                ),
+                AppStyle.divider,
+                GetBuilder<OtherSettingsController>(
+                  builder: (controller) => SettingsAction(
+                    title: "同步代理地址",
+                    subtitle:
+                        "默认自动检测本机 127.0.0.1:51888；需要直连可填写 direct",
+                    value: controller.syncProxyUrl,
+                    onTap: controller.editSyncProxyUrl,
+                  ),
+                ),
+                AppStyle.divider,
                 Obx(
                   () => SettingsSwitch(
                     value:

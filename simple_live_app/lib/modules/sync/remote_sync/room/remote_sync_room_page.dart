@@ -131,18 +131,20 @@ class RemoteSyncRoomPage extends GetView<RemoteSyncRoomController> {
                         Icons.copy,
                         size: 20,
                       ),
-                      onPressed: () {
-                        Utils.copyToClipboard(controller.currentRoomId.value);
-                      },
+                      onPressed: controller.hasValidRoomId
+                          ? () {
+                              Utils.copyToClipboard(
+                                  controller.currentRoomId.value);
+                            }
+                          : null,
                     ),
                     IconButton(
                       icon: const Icon(
                         Icons.qr_code,
                         size: 20,
                       ),
-                      onPressed: () {
-                        controller.showQRInfo();
-                      },
+                      onPressed:
+                          controller.hasValidRoomId ? controller.showQRInfo : null,
                     ),
                     AppStyle.hGap4,
                   ],
@@ -254,7 +256,7 @@ class RemoteSyncRoomPage extends GetView<RemoteSyncRoomController> {
                     ),
                     subtitle: Text("${user.app} - v${user.version}"),
                     trailing: Visibility(
-                      visible: controller.signalR.hubConnection?.connectionId ==
+                      visible: controller.signalR.hubConnection.connectionId ==
                           user.connectionId,
                       child: const Text(
                         "本机",

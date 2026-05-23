@@ -34,6 +34,8 @@ class RemoteSyncRoomController extends BaseController {
   StreamSubscription? _onBiliAccountSubscription;
   var currentRoomId = "--".obs;
   RxList<RoomUser> roomUsers = <RoomUser>[].obs;
+  bool get hasValidRoomId =>
+      currentRoomId.value.trim().length == SignalRService.kRoomIdLength;
 
   Timer? _timer;
   var countDown = 600.obs;
@@ -70,7 +72,9 @@ class RemoteSyncRoomController extends BaseController {
         _startTimer();
       } else {
         SmartDialog.showToast(
-          resp.message.isEmpty ? "创建房间失败：服务未返回房间号" : resp.message,
+          resp.message.isEmpty
+              ? "创建房间失败：服务未返回房间号"
+              : "创建房间失败：${_formatSyncError(resp.message)}",
         );
         Get.back();
       }
@@ -389,6 +393,10 @@ class RemoteSyncRoomController extends BaseController {
   }
 
   void showQRInfo() {
+    if (!hasValidRoomId) {
+      SmartDialog.showToast("房间号还未创建完成");
+      return;
+    }
     Utils.showBottomSheet(
       title: "房间信息",
       child: Column(

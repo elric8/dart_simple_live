@@ -176,8 +176,10 @@ class SyncService extends GetxService {
     return toJsonResponse({
       'status': true,
       'message': 'http server is running...',
-      "version":
-          'SimpeLive ${Platform.operatingSystem} v${Utils.packageInfo.version}',
+      "version": 'Simple Live TV v${Utils.packageInfo.version}',
+      "app": "Simple Live TV",
+      "type": "tv",
+      "platform": Platform.operatingSystem,
     });
   }
 

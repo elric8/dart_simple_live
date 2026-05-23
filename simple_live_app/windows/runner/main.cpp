@@ -7,15 +7,10 @@
 
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
                       _In_ wchar_t *command_line, _In_ int show_command) {
-  HANDLE single_instance_mutex =
-      ::CreateMutexW(nullptr, TRUE, L"June6699.SimpleLive.SingleInstance");
-  if (single_instance_mutex == nullptr ||
-      ::GetLastError() == ERROR_ALREADY_EXISTS) {
-    if (single_instance_mutex != nullptr) {
-      ::CloseHandle(single_instance_mutex);
-    }
-    return EXIT_SUCCESS;
-  }
+  HANDLE primary_instance_mutex =
+      ::CreateMutexW(nullptr, TRUE, L"June6699.SimpleLive.PrimaryInstance");
+  const bool secondary_instance = primary_instance_mutex != nullptr &&
+                                  ::GetLastError() == ERROR_ALREADY_EXISTS;
 
   // Attach to console when present (e.g., 'flutter run') or create a
   // new console when running with a debugger.
@@ -31,6 +26,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
 
   std::vector<std::string> command_line_arguments =
       GetCommandLineArguments();
+  if (secondary_instance) {
+    command_line_arguments.push_back("--simple-live-secondary-instance");
+  }
 
   project.set_dart_entrypoint_arguments(std::move(command_line_arguments));
 
@@ -49,7 +47,11 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   }
 
   ::CoUninitialize();
-  ::ReleaseMutex(single_instance_mutex);
-  ::CloseHandle(single_instance_mutex);
+  if (primary_instance_mutex != nullptr) {
+    if (!secondary_instance) {
+      ::ReleaseMutex(primary_instance_mutex);
+    }
+    ::CloseHandle(primary_instance_mutex);
+  }
   return EXIT_SUCCESS;
 }

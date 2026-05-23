@@ -59,7 +59,9 @@ class SyncController extends BaseController {
         _startTimer();
       } else {
         SmartDialog.showToast(
-          resp.message.isEmpty ? "创建房间失败：服务未返回房间号" : resp.message,
+          resp.message.isEmpty
+              ? "创建房间失败：服务未返回房间号"
+              : "创建房间失败：${_formatSyncError(resp.message)}",
         );
         Get.back();
       }

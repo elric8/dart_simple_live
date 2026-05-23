@@ -78,16 +78,117 @@ class ProfileBackupService extends GetxService {
     bool overwrite = false,
   }) async {
     final decoded = jsonDecode(content);
-    if (decoded is! Map || decoded["schema"] != schema) {
+    if (decoded is! Map) {
       throw const FormatException("不是 Simple Live 配置包");
     }
-    if ((decoded["schemaVersion"] as num?)?.toInt() != schemaVersion) {
-      throw const FormatException("暂不支持该配置包版本");
+    if (decoded["schema"] == schema) {
+      if ((decoded["schemaVersion"] as num?)?.toInt() != schemaVersion) {
+        throw const FormatException("暂不支持该配置包版本");
+      }
+      return importProfileMap(
+        decoded.cast<String, dynamic>(),
+        overwrite: overwrite,
+      );
     }
-    return importProfileMap(
-      decoded.cast<String, dynamic>(),
-      overwrite: overwrite,
-    );
+    if (decoded["type"] == "simple_live") {
+      return importLegacyProfileMap(
+        decoded.cast<String, dynamic>(),
+        overwrite: overwrite,
+      );
+    }
+    if (_looksLikeLegacyDataFile(decoded)) {
+      return importLegacyDataFileMap(
+        decoded.cast<String, dynamic>(),
+        overwrite: overwrite,
+      );
+    }
+    throw const FormatException("不是 Simple Live 配置包");
+  }
+
+  Future<ProfileImportSummary> importLegacyProfileMap(
+    Map<String, dynamic> payload, {
+    bool overwrite = false,
+  }) async {
+    final summary = ProfileImportSummary();
+    await _importSettings(payload["config"], summary, overwrite);
+    await _importShields({"raw": _legacyShieldValues(payload["shield"])},
+        summary, overwrite);
+
+    AppSettingsController.instance.reloadFromStorage();
+    await LiveSubtitleService.instance.syncPreviewFromSettings();
+    EventBus.instance.emit(Constant.kUpdateFollow, 0);
+    EventBus.instance.emit(Constant.kUpdateHistory, 0);
+    return summary;
+  }
+
+  bool isSupportedProfileMap(dynamic payload) {
+    return payload is Map &&
+        (payload["schema"] == schema ||
+            payload["type"] == "simple_live" ||
+            _looksLikeLegacyDataFile(payload));
+  }
+
+  bool _looksLikeLegacyDataFile(dynamic payload) {
+    if (payload is! Map) {
+      return false;
+    }
+    if (payload["data"] is List) {
+      return true;
+    }
+    const keys = {
+      "followUsers",
+      "follows",
+      "favorites",
+      "followUserTags",
+      "tags",
+      "histories",
+      "history",
+    };
+    return keys.any((key) {
+      final value = payload[key];
+      return value is List || (value is Map && value["data"] is List);
+    });
+  }
+
+  Future<ProfileImportSummary> importLegacyDataFileMap(
+    Map<String, dynamic> payload, {
+    bool overwrite = false,
+  }) async {
+    final summary = ProfileImportSummary();
+    if (payload["data"] is List) {
+      await _importLegacyDataList(payload["data"], summary, overwrite);
+    } else {
+      await _importFollowUsers(_readPayloadList(payload, [
+        "followUsers",
+        "follows",
+        "favorites",
+      ]), summary, overwrite);
+      await _importFollowTags(_readPayloadList(payload, [
+        "followUserTags",
+        "tags",
+      ]), summary, overwrite);
+      await _importHistories(_readPayloadList(payload, [
+        "histories",
+        "history",
+      ]), summary, overwrite);
+    }
+
+    await FollowService.instance.loadData(updateStatus: false);
+    EventBus.instance.emit(Constant.kUpdateFollow, 0);
+    EventBus.instance.emit(Constant.kUpdateHistory, 0);
+    return summary;
+  }
+
+  List<String> _legacyShieldValues(dynamic rawShield) {
+    if (rawShield is! Map) {
+      return const [];
+    }
+    return rawShield.values
+        .map((e) => e.toString().trim())
+        .where((e) => e.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
   }
 
   Future<ProfileImportSummary> importProfileMap(
@@ -98,9 +199,19 @@ class ProfileBackupService extends GetxService {
     await _importSettings(payload["settings"], summary, overwrite);
     await _importShields(payload["danmuShield"], summary, overwrite);
     await _importShieldPresets(payload["shieldPresets"], summary, overwrite);
-    await _importFollowUsers(payload["followUsers"], summary, overwrite);
-    await _importFollowTags(payload["followUserTags"], summary, overwrite);
-    await _importHistories(payload["histories"], summary, overwrite);
+    await _importFollowUsers(_readPayloadList(payload, [
+      "followUsers",
+      "follows",
+      "favorites",
+    ]), summary, overwrite);
+    await _importFollowTags(_readPayloadList(payload, [
+      "followUserTags",
+      "tags",
+    ]), summary, overwrite);
+    await _importHistories(_readPayloadList(payload, [
+      "histories",
+      "history",
+    ]), summary, overwrite);
 
     AppSettingsController.instance.reloadFromStorage();
     await LiveSubtitleService.instance.syncPreviewFromSettings();
@@ -276,9 +387,17 @@ class ProfileBackupService extends GetxService {
       if (item is! Map) {
         continue;
       }
-      final user = FollowUser.fromJson(item.cast<String, dynamic>());
-      await DBService.instance.followBox.put(user.id, user);
-      summary.followUsers++;
+      try {
+        final user = FollowUser.fromJson(Map<String, dynamic>.from(item));
+        if (user.id.isEmpty || user.roomId.isEmpty || user.siteId.isEmpty) {
+          summary.skipped++;
+          continue;
+        }
+        await DBService.instance.followBox.put(user.id, user);
+        summary.followUsers++;
+      } catch (_) {
+        summary.skipped++;
+      }
     }
   }
 
@@ -297,9 +416,17 @@ class ProfileBackupService extends GetxService {
       if (item is! Map) {
         continue;
       }
-      final tag = FollowUserTag.fromJson(item.cast<String, dynamic>());
-      await DBService.instance.tagBox.put(tag.id, tag);
-      summary.followTags++;
+      try {
+        final tag = FollowUserTag.fromJson(Map<String, dynamic>.from(item));
+        if (tag.id.isEmpty || tag.tag.isEmpty) {
+          summary.skipped++;
+          continue;
+        }
+        await DBService.instance.tagBox.put(tag.id, tag);
+        summary.followTags++;
+      } catch (_) {
+        summary.skipped++;
+      }
     }
   }
 
@@ -318,15 +445,66 @@ class ProfileBackupService extends GetxService {
       if (item is! Map) {
         continue;
       }
-      final history = History.fromJson(item.cast<String, dynamic>());
-      final old = DBService.instance.historyBox.get(history.id);
-      if (!overwrite &&
-          old != null &&
-          old.updateTime.isAfter(history.updateTime)) {
-        continue;
+      try {
+        final history = History.fromJson(Map<String, dynamic>.from(item));
+        if (history.id.isEmpty ||
+            history.roomId.isEmpty ||
+            history.siteId.isEmpty) {
+          summary.skipped++;
+          continue;
+        }
+        final old = DBService.instance.historyBox.get(history.id);
+        if (!overwrite &&
+            old != null &&
+            old.updateTime.isAfter(history.updateTime)) {
+          continue;
+        }
+        await DBService.instance.addOrUpdateHistory(history);
+        summary.histories++;
+      } catch (_) {
+        summary.skipped++;
       }
-      await DBService.instance.addOrUpdateHistory(history);
-      summary.histories++;
+    }
+  }
+
+  dynamic _readPayloadList(Map<String, dynamic> payload, List<String> keys) {
+    for (final key in keys) {
+      final value = payload[key];
+      if (value is List) {
+        return value;
+      }
+      if (value is Map && value["data"] is List) {
+        return value["data"];
+      }
+    }
+    return null;
+  }
+
+  Future<void> _importLegacyDataList(
+    dynamic rawList,
+    ProfileImportSummary summary,
+    bool overwrite,
+  ) async {
+    if (rawList is! List || rawList.isEmpty) {
+      return;
+    }
+    final firstMap = rawList.whereType<Map>().firstOrNull;
+    if (firstMap != null) {
+      if (firstMap.containsKey("userId") || firstMap.containsKey("tag")) {
+        await _importFollowTags(rawList, summary, overwrite);
+        return;
+      }
+      if (firstMap.containsKey("updateTime")) {
+        await _importHistories(rawList, summary, overwrite);
+        return;
+      }
+      if (firstMap.containsKey("roomId") || firstMap.containsKey("siteId")) {
+        await _importFollowUsers(rawList, summary, overwrite);
+        return;
+      }
+    }
+    if (rawList.every((item) => item is String)) {
+      await _importShields({"raw": rawList}, summary, overwrite);
     }
   }
 
@@ -357,9 +535,13 @@ class ProfileImportSummary {
   int followUsers = 0;
   int followTags = 0;
   int histories = 0;
+  int skipped = 0;
 
-  String get message =>
-      "设置 $settings 项，屏蔽 $shields 项，预设 $shieldPresets 个，关注 $followUsers 个，标签 $followTags 个，历史 $histories 条";
+  String get message {
+    final base =
+        "设置 $settings 项，屏蔽 $shields 项，预设 $shieldPresets 个，关注 $followUsers 个，标签 $followTags 个，历史 $histories 条";
+    return skipped > 0 ? "$base，跳过异常 $skipped 条" : base;
+  }
 }
 
 class AppSettingsControllerSafe {

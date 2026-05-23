@@ -68,6 +68,8 @@ class LocalStorageService extends GetxService {
   static const String kWebDAVPassword = "kWebDAVPassword";
   static const String kWebDAVLastUploadTime = "kWebDAVLastUploadTime";
   static const String kWebDAVLastRecoverTime = "kWebDAVLastRecoverTime";
+  static const String kSyncServerUrl = "SyncServerUrl";
+  static const String kSyncProxyUrl = "SyncProxyUrl";
   static const String kLiveSubtitleEnable = "LiveSubtitleEnable";
   static const String kLiveSubtitleModelPath = "LiveSubtitleModelPath";
   static const String kLiveSubtitleLanguage = "LiveSubtitleLanguage";

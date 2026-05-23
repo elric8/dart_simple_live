@@ -1,4 +1,5 @@
 import Cocoa
+import Darwin
 import FlutterMacOS
 
 @NSApplicationMain
@@ -10,10 +11,8 @@ class AppDelegate: FlutterAppDelegate {
         .runningApplications(withBundleIdentifier: bundleIdentifier)
         .first { $0.processIdentifier != currentProcessIdentifier }
 
-      if let existingApp = existingApp {
-        existingApp.activate(options: [.activateAllWindows])
-        NSApp.terminate(nil)
-        return
+      if existingApp != nil {
+        setenv("SIMPLE_LIVE_SECONDARY_INSTANCE", "1", 1)
       }
     }
 

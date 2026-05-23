@@ -123,6 +123,12 @@ class LocalStorageService extends GetxService {
   /// 开启多线程更新关注
   static const String kUpdateFollowThreadCount = "UpdateFollowThreadCount";
 
+  /// 远程同步服务地址
+  static const String kSyncServerUrl = "SyncServerUrl";
+
+  /// 远程同步代理地址
+  static const String kSyncProxyUrl = "SyncProxyUrl";
+
   late Box settingsBox;
   late Box<String> shieldBox;
 

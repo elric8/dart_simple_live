@@ -227,7 +227,10 @@ class SyncService extends GetxService {
       'status': true,
       'message': 'http server is running...',
       "version":
-          'SimpeLive ${Platform.operatingSystem} v${Utils.packageInfo.version}',
+          'Simple Live ${Platform.operatingSystem} v${Utils.packageInfo.version}',
+      "app": "Simple Live",
+      "type": Platform.operatingSystem,
+      "platform": Platform.operatingSystem,
     });
   }
 

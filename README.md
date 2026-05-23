@@ -22,6 +22,16 @@
 - fork 来源：[原作者仓库 xiaoyaocz/dart_simple_live](https://github.com/xiaoyaocz/dart_simple_live)
 - 当前公开仓库：`June6699/dart_simple_live`
 
+## 支持项目
+
+Simple Live 会继续保持开源和免费使用。
+
+如果这个项目刚好帮到了你，也可以请我喝杯 coffee，或者补一点 token、同步服务域名、Workers 之类的维护费用。
+
+<p align="center">
+  <img width="360" src="/assets/support_wechat.png" alt="微信收款码">
+</p>
+
 ## Release 资产
 
 在我的设备Windows+安卓+TV模拟设备上实际测试，release内的功能和bug修复均完成。
@@ -34,6 +44,43 @@
 - Linux `zip`
 - Linux `deb`
 - source code zip
+
+## 远程同步服务
+
+当前远程同步使用自建 Cloudflare Workers 临时房间服务：
+
+- 服务状态页：`https://simple-live-sync.3439394104.workers.dev`
+- App 内 WebSocket 地址：`wss://simple-live-sync.3439394104.workers.dev/sync`
+
+普通用户不需要自己配置服务器；创建房间、扫码或输入房间号即可同步。浏览器直接打开 `/sync` 显示 `websocket upgrade required` 是正常的，因为 `/sync` 只给 App 的 WebSocket 使用。
+
+已知限制：
+
+- 房间 600 秒后自动过期。
+- 创建者退出或断开后，房间会销毁。
+- 单房间最多 8 个连接。
+- 单条同步消息最大 1 MB。
+- 服务只做临时转发，不保存关注、历史、Cookie、屏蔽词等内容。
+- 这不是账号云同步；不会跨天、跨设备持续自动同步。
+- 如果用户所在网络无法访问 `workers.dev` 或拦截 WebSocket，远程同步可能连接失败，可改用局域网同步、WebDAV，或在设置里填写自建同步服务地址。后续建议绑定自定义域名，减少 `workers.dev` 在部分网络下不可达的问题。
+
+可配置项：
+
+- 主 App：`其他设置 -> 同步服务地址` 可以填写自建 `ws://` 或 `wss://` 地址，留空则使用内置默认服务。
+- 主 App：`其他设置 -> 同步代理地址` 可以填写代理地址，例如 `127.0.0.1:51888` 或 `http://127.0.0.1:51888`；留空会在桌面端自动检测本机 `127.0.0.1:51888`，填写 `direct` 表示强制直连。
+- 代理端口不是固定值，请在自己的代理软件里查看本机 HTTP 代理端口。比如 v2rayN、Clash、Mihomo 等软件一般会在设置或端口页面显示 `HTTP Port` / `Mixed Port`。
+- TV App：设置页“关于”里显示当前同步服务地址；默认使用内置服务。
+
+## 配置导入
+
+新版配置包会导出设置、关注、标签、历史、弹幕屏蔽词和屏蔽词预设；Cookie、WebDAV 密码等敏感内容默认不会写入配置包。
+
+兼容说明：
+
+- 支持导入新版 `simple_live_profile.json`。
+- 支持导入旧版 `simple_live_config.json`，但旧版“其他设置导出”本身通常只包含设置和弹幕屏蔽词，不一定包含关注列表。
+- 支持兼容旧 WebDAV/同步备份里的关注、标签、历史数组格式。
+- 如果旧备份文件仍然提示格式错误，或关注列表没有恢复，可以带上备份文件和报错信息联系作者，我会帮忙转换格式或继续补兼容。
 
 TV 版已在本地 `Android Emulator - Medium_Phone`（`Android 16 / API 36 / x86_64`）验证通过，虎牙、斗鱼、抖音直播均可正常出画面。当前这版 TV 播放建议保持 `硬件解码` 开启。
 
