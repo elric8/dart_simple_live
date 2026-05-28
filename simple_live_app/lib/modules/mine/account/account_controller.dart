@@ -90,7 +90,7 @@ class AccountController extends GetxController {
         mainAxisSize: MainAxisSize.min,
         children: [
           Visibility(
-            visible: Platform.isAndroid || Platform.isIOS,
+            visible: Platform.isAndroid || Platform.isIOS || Platform.isWindows,
             child: ListTile(
               leading: const Icon(Icons.qr_code_scanner),
               title: const Text("网页登录/扫码登录"),

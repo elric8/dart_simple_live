@@ -80,7 +80,7 @@ class DouyinWebLoginController extends BaseController {
         final name = item.name.trim();
         final value = item.value.trim();
         if (name.isNotEmpty && value.isNotEmpty) {
-          values[name] = value;
+          values.putIfAbsent(name, () => value);
         }
       }
     }
